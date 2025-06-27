@@ -3,14 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tilt Physics Game</title>
+  <title>Tilt Labyrinth RPG</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
-      background: #222;
-      touch-action: none;
+      background: #111;
     }
     canvas {
       display: block;
@@ -26,6 +25,7 @@
     const canvas = document.getElementById("game");
     const engine = Engine.create();
     const world = engine.world;
+
     const render = Render.create({
       canvas: canvas,
       engine: engine,
@@ -33,7 +33,7 @@
         width: window.innerWidth,
         height: window.innerHeight,
         wireframes: false,
-        background: '#222'
+        background: '#111'
       }
     });
 
@@ -48,48 +48,111 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // Add some fixed squares
-    const fixedSquares = [
-      Bodies.rectangle(200, 400, 100, 100, { isStatic: true, render: { fillStyle: '#f55' } }),
-      Bodies.rectangle(window.innerWidth - 200, 300, 100, 100, { isStatic: true, render: { fillStyle: '#5f5' } })
-    ];
+    const SPRITES = {
+      hero: 'https://i.imgur.com/IuPzZle.png',
+      sword: 'https://i.imgur.com/lUo3rIK.png',
+      shield: 'https://i.imgur.com/tN8M3Pk.png',
+      enemy: 'https://i.imgur.com/8GQjQBB.png',
+      apple: 'https://i.imgur.com/2va2VMf.png'
+    };
 
-    World.add(world, fixedSquares);
-
-    // Add bouncing circles
-    const balls = [];
-    for (let i = 0; i < 10; i++) {
-      const ball = Bodies.circle(Math.random() * window.innerWidth, Math.random() * window.innerHeight / 2, 30, {
-        restitution: 0.8,
-        friction: 0.05,
+    const HERO = {
+      attack: 5,
+      defense: 5,
+      health: 30,
+      body: Bodies.circle(100, 100, 30, {
+        label: 'hero',
+        restitution: 0.5,
         render: {
-          fillStyle: '#88f'
+          sprite: { texture: SPRITES.hero, xScale: 0.15, yScale: 0.15 }
+        }
+      })
+    };
+
+    const items = [];
+
+    function createItem(type, x, y) {
+      let item = Bodies.circle(x, y, 25, {
+        isSensor: true,
+        label: type,
+        render: {
+          sprite: {
+            texture: SPRITES[type],
+            xScale: 0.15,
+            yScale: 0.15
+          }
         }
       });
-      balls.push(ball);
+      item.stats = { health: type === 'enemy' ? 20 : 0, attack: 4, defense: 2 };
+      items.push(item);
+      return item;
     }
 
-    World.add(world, balls);
+    // Generate labyrinth walls
+    const walls = [];
+    for (let i = 0; i < 10; i++) {
+      let wall = Bodies.rectangle(
+        Math.random() * window.innerWidth,
+        Math.random() * window.innerHeight,
+        200, 20,
+        { isStatic: true, angle: Math.random() * Math.PI, render: { fillStyle: '#444' } }
+      );
+      walls.push(wall);
+    }
 
-    // Add walls
-    const ground = Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 50, window.innerWidth, 100, { isStatic: true });
-    const ceiling = Bodies.rectangle(window.innerWidth / 2, -50, window.innerWidth, 100, { isStatic: true });
-    const leftWall = Bodies.rectangle(-50, window.innerHeight / 2, 100, window.innerHeight, { isStatic: true });
-    const rightWall = Bodies.rectangle(window.innerWidth + 50, window.innerHeight / 2, 100, window.innerHeight, { isStatic: true });
-    World.add(world, [ground, ceiling, leftWall, rightWall]);
+    World.add(world, [
+      HERO.body,
+      createItem('sword', 300, 300),
+      createItem('shield', 400, 500),
+      createItem('apple', 200, 600),
+      createItem('enemy', 600, 400),
+      ...walls,
+      Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 50, window.innerWidth, 100, { isStatic: true }),
+      Bodies.rectangle(window.innerWidth / 2, -50, window.innerWidth, 100, { isStatic: true }),
+      Bodies.rectangle(-50, window.innerHeight / 2, 100, window.innerHeight, { isStatic: true }),
+      Bodies.rectangle(window.innerWidth + 50, window.innerHeight / 2, 100, window.innerHeight, { isStatic: true })
+    ]);
 
-    // Tilt interaction
+    Events.on(engine, 'collisionStart', event => {
+      for (let pair of event.pairs) {
+        const labels = [pair.bodyA.label, pair.bodyB.label];
+
+        if (labels.includes('hero')) {
+          let other = pair.bodyA.label === 'hero' ? pair.bodyB : pair.bodyA;
+          if (!other.label) continue;
+
+          if (other.label === 'sword') {
+            HERO.attack += 2;
+            World.remove(world, other);
+          } else if (other.label === 'shield') {
+            HERO.defense += 2;
+            World.remove(world, other);
+          } else if (other.label === 'apple') {
+            HERO.health += 5;
+            World.remove(world, other);
+          } else if (other.label === 'enemy') {
+            let damageToEnemy = Math.max(0, HERO.attack - other.stats.defense);
+            let damageToHero = Math.max(0, other.stats.attack - HERO.defense);
+            other.stats.health -= damageToEnemy;
+            HERO.health -= damageToHero;
+
+            if (other.stats.health <= 0) World.remove(world, other);
+            if (HERO.health <= 0) {
+              alert("You died!");
+              location.reload();
+            }
+          }
+        }
+      }
+    });
+
+    // Gravity via tilt
     window.addEventListener('deviceorientation', function(event) {
-      const tiltX = event.gamma; // left-to-right
-      const tiltY = event.beta;  // front-to-back
-
+      const tiltX = event.gamma;
+      const tiltY = event.beta;
       if (tiltX !== null && tiltY !== null) {
-        // Convert to gravity vector
-        const gravityX = tiltX / 90;
-        const gravityY = tiltY / 90;
-
-        engine.gravity.x = gravityX;
-        engine.gravity.y = gravityY;
+        engine.gravity.x = tiltX / 90;
+        engine.gravity.y = tiltY / 90;
       }
     });
   </script>
