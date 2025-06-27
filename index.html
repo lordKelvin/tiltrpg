@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tilt Labyrinth RPG</title>
+  <title>Tilt Labyrinth RPG (Emoji Edition)</title>
   <style>
     html, body {
       margin: 0;
@@ -13,6 +13,11 @@
     }
     canvas {
       display: block;
+    }
+    .emoji-label {
+      position: absolute;
+      font-size: 24px;
+      pointer-events: none;
     }
   </style>
 </head>
@@ -48,13 +53,36 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    const SPRITES = {
-      hero: 'https://i.imgur.com/IuPzZle.png',
-      sword: 'https://i.imgur.com/lUo3rIK.png',
-      shield: 'https://i.imgur.com/tN8M3Pk.png',
-      enemy: 'https://i.imgur.com/8GQjQBB.png',
-      apple: 'https://i.imgur.com/2va2VMf.png'
+    const EMOJIS = {
+      hero: '🧙',
+      sword: '🗡️',
+      shield: '🛡️',
+      enemy: '👾',
+      apple: '🍎'
     };
+
+    const labels = {};
+
+    function makeEmojiLabel(emoji) {
+      const el = document.createElement('div');
+      el.className = 'emoji-label';
+      el.textContent = emoji;
+      document.body.appendChild(el);
+      return el;
+    }
+
+    function trackEmoji(label, body) {
+      const el = makeEmojiLabel(label);
+      labels[body.id] = { el, body };
+    }
+
+    function updateEmojiPositions() {
+      for (let id in labels) {
+        const { el, body } = labels[id];
+        el.style.left = (body.position.x - 12) + 'px';
+        el.style.top = (body.position.y - 16) + 'px';
+      }
+    }
 
     const HERO = {
       attack: 5,
@@ -63,11 +91,10 @@
       body: Bodies.circle(100, 100, 30, {
         label: 'hero',
         restitution: 0.5,
-        render: {
-          sprite: { texture: SPRITES.hero, xScale: 0.15, yScale: 0.15 }
-        }
+        render: { fillStyle: '#222' }
       })
     };
+    trackEmoji(EMOJIS.hero, HERO.body);
 
     const items = [];
 
@@ -75,16 +102,11 @@
       let item = Bodies.circle(x, y, 25, {
         isSensor: true,
         label: type,
-        render: {
-          sprite: {
-            texture: SPRITES[type],
-            xScale: 0.15,
-            yScale: 0.15
-          }
-        }
+        render: { fillStyle: '#111' }
       });
       item.stats = { health: type === 'enemy' ? 20 : 0, attack: 4, defense: 2 };
       items.push(item);
+      trackEmoji(EMOJIS[type], item);
       return item;
     }
 
@@ -116,7 +138,6 @@
     Events.on(engine, 'collisionStart', event => {
       for (let pair of event.pairs) {
         const labels = [pair.bodyA.label, pair.bodyB.label];
-
         if (labels.includes('hero')) {
           let other = pair.bodyA.label === 'hero' ? pair.bodyB : pair.bodyA;
           if (!other.label) continue;
@@ -124,19 +145,25 @@
           if (other.label === 'sword') {
             HERO.attack += 2;
             World.remove(world, other);
+            labels[other.id]?.el?.remove();
           } else if (other.label === 'shield') {
             HERO.defense += 2;
             World.remove(world, other);
+            labels[other.id]?.el?.remove();
           } else if (other.label === 'apple') {
             HERO.health += 5;
             World.remove(world, other);
+            labels[other.id]?.el?.remove();
           } else if (other.label === 'enemy') {
             let damageToEnemy = Math.max(0, HERO.attack - other.stats.defense);
             let damageToHero = Math.max(0, other.stats.attack - HERO.defense);
             other.stats.health -= damageToEnemy;
             HERO.health -= damageToHero;
 
-            if (other.stats.health <= 0) World.remove(world, other);
+            if (other.stats.health <= 0) {
+              World.remove(world, other);
+              labels[other.id]?.el?.remove();
+            }
             if (HERO.health <= 0) {
               alert("You died!");
               location.reload();
@@ -155,6 +182,12 @@
         engine.gravity.y = tiltY / 90;
       }
     });
+
+    // Animate emoji labels
+    (function animate() {
+      updateEmojiPositions();
+      requestAnimationFrame(animate);
+    })();
   </script>
 </body>
 </html>
