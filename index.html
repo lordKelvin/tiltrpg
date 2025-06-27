@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tilt Labyrinth RPG</title>
   <style>
@@ -42,8 +42,8 @@
     const world = engine.world;
 
     const render = Render.create({
-      canvas: canvas,
-      engine: engine,
+      canvas,
+      engine,
       options: {
         width: window.innerWidth,
         height: window.innerHeight,
@@ -63,14 +63,7 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    const EMOJIS = {
-      hero: '🧙',
-      sword: '🗡️',
-      shield: '🛡️',
-      enemy: '👾',
-      apple: '🍎'
-    };
-
+    const EMOJIS = { hero: '🧙', sword: '🗡️', shield: '🛡️', enemy: '👾', apple: '🍎' };
     const labels = {};
     const hud = document.getElementById("hud");
 
@@ -99,25 +92,33 @@
       hud.innerText = `Health: ${HERO.health} | Attack: ${HERO.attack} | Defense: ${HERO.defense}`;
     }
 
+    const cellCols = 10;
+    const cellRows = 15;
+    const cellSize = Math.floor(Math.min(window.innerWidth / cellCols, window.innerHeight / cellRows));
+    const offsetX = (window.innerWidth - cellCols * cellSize) / 2;
+    const offsetY = (window.innerHeight - cellRows * cellSize) / 2;
+
     const HERO = {
       attack: 3,
       defense: 2,
       health: 20,
-      body: Bodies.circle(30, 30, 14, {
+      body: Bodies.circle(offsetX + cellSize / 2, offsetY + cellSize / 2, 14, {
         label: 'hero',
         restitution: 0.4,
-        render: { fillStyle: '#666' }
+        render: { fillStyle: '#ccc' }
       })
     };
     trackEmoji(EMOJIS.hero, HERO.body);
     updateHUD();
 
     const items = [];
-    function createItem(type, x, y) {
+    function createItem(type, col, row) {
+      let x = offsetX + col * cellSize + cellSize / 2;
+      let y = offsetY + row * cellSize + cellSize / 2;
       let item = Bodies.circle(x, y, 10, {
         label: type,
         restitution: 0.4,
-        render: { fillStyle: '#aaa' }
+        render: { fillStyle: '#eee' }
       });
       item.stats = { health: type === 'enemy' ? 10 : 0, attack: 3, defense: 1 };
       items.push(item);
@@ -125,12 +126,31 @@
       return item;
     }
 
-    const mazeWalls = [];
-    const cols = 12;
-    const rows = 20;
-    const cellSize = Math.min(window.innerWidth / cols, window.innerHeight / rows);
-    const visited = Array(rows).fill(null).map(() => Array(cols).fill(false));
-    const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+    function buildMaze(cols, rows) {
+      const visited = Array(rows).fill().map(() => Array(cols).fill(false));
+      const grid = Array(rows).fill().map(() => Array(cols).fill([1, 1, 1, 1])); // [top, right, bottom, left]
+      const stack = [[0, 0]];
+
+      while (stack.length) {
+        const [x, y] = stack.pop();
+        if (visited[y][x]) continue;
+        visited[y][x] = true;
+        const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+        shuffle(directions);
+
+        for (let i = 0; i < directions.length; i++) {
+          const [dx, dy] = directions[i];
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < cols && ny >= 0 && ny < rows && !visited[ny][nx]) {
+            grid[y][x][i] = 0;
+            grid[ny][nx][(i + 2) % 4] = 0;
+            stack.push([nx, ny]);
+          }
+        }
+      }
+      return grid;
+    }
 
     function shuffle(arr) {
       for (let i = arr.length - 1; i > 0; i--) {
@@ -140,40 +160,27 @@
       return arr;
     }
 
-    function generateMaze(x, y) {
-      visited[y][x] = true;
-      for (const [dx, dy] of shuffle(directions)) {
-        const nx = x + dx, ny = y + dy;
-        if (nx >= 0 && nx < cols && ny >= 0 && ny < rows && !visited[ny][nx]) {
-          const mx = (x + nx + 1) * cellSize / 2;
-          const my = (y + ny + 1) * cellSize / 2;
-          const vertical = dx === 0;
-          mazeWalls.push(Bodies.rectangle(mx, my, vertical ? cellSize : 4, vertical ? 4 : cellSize, {
-            isStatic: true,
-            render: { fillStyle: '#333' }
-          }));
-          generateMaze(nx, ny);
-        }
+    const maze = buildMaze(cellCols, cellRows);
+    const walls = [];
+
+    for (let y = 0; y < cellRows; y++) {
+      for (let x = 0; x < cellCols; x++) {
+        const [top, right, bottom, left] = maze[y][x];
+        const cx = offsetX + x * cellSize;
+        const cy = offsetY + y * cellSize;
+        if (top) walls.push(Bodies.rectangle(cx + cellSize / 2, cy, cellSize, 4, { isStatic: true, render: { fillStyle: '#444' } }));
+        if (right) walls.push(Bodies.rectangle(cx + cellSize, cy + cellSize / 2, 4, cellSize, { isStatic: true, render: { fillStyle: '#444' } }));
+        if (bottom) walls.push(Bodies.rectangle(cx + cellSize / 2, cy + cellSize, cellSize, 4, { isStatic: true, render: { fillStyle: '#444' } }));
+        if (left) walls.push(Bodies.rectangle(cx, cy + cellSize / 2, 4, cellSize, { isStatic: true, render: { fillStyle: '#444' } }));
       }
     }
 
-    generateMaze(0, 0);
+    const allObjects = [HERO.body, ...walls];
 
-    // Borders
-    const border = [
-      Bodies.rectangle(window.innerWidth / 2, -20, window.innerWidth, 40, { isStatic: true }),
-      Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 20, window.innerWidth, 40, { isStatic: true }),
-      Bodies.rectangle(-20, window.innerHeight / 2, 40, window.innerHeight, { isStatic: true }),
-      Bodies.rectangle(window.innerWidth + 20, window.innerHeight / 2, 40, window.innerHeight, { isStatic: true })
-    ];
-
-    // Populate game
-    const allObjects = [HERO.body, ...border, ...mazeWalls];
-
-    for (let i = 0; i < 3; i++) allObjects.push(createItem('sword', Math.random() * window.innerWidth, Math.random() * window.innerHeight));
-    for (let i = 0; i < 3; i++) allObjects.push(createItem('shield', Math.random() * window.innerWidth, Math.random() * window.innerHeight));
-    for (let i = 0; i < 4; i++) allObjects.push(createItem('apple', Math.random() * window.innerWidth, Math.random() * window.innerHeight));
-    for (let i = 0; i < 5; i++) allObjects.push(createItem('enemy', Math.random() * window.innerWidth, Math.random() * window.innerHeight));
+    for (let i = 0; i < 3; i++) allObjects.push(createItem('sword', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
+    for (let i = 0; i < 3; i++) allObjects.push(createItem('shield', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
+    for (let i = 0; i < 4; i++) allObjects.push(createItem('apple', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
+    for (let i = 0; i < 5; i++) allObjects.push(createItem('enemy', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
 
     World.add(world, allObjects);
 
@@ -181,17 +188,16 @@
       for (let pair of event.pairs) {
         const [a, b] = [pair.bodyA, pair.bodyB];
         let hero = null, other = null;
-
         if (a.label === 'hero') { hero = a; other = b; }
         else if (b.label === 'hero') { hero = b; other = a; }
         else continue;
 
         if (other.label === 'sword') {
-          HERO.attack += 1;
+          HERO.attack++;
           World.remove(world, other);
           labels[other.id].el.remove();
         } else if (other.label === 'shield') {
-          HERO.defense += 1;
+          HERO.defense++;
           World.remove(world, other);
           labels[other.id].el.remove();
         } else if (other.label === 'apple') {
