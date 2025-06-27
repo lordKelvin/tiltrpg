@@ -103,10 +103,10 @@
       attack: 3,
       defense: 2,
       health: 20,
-      body: Bodies.circle(60, 60, 15, {
+      body: Bodies.circle(30, 30, 14, {
         label: 'hero',
         restitution: 0.4,
-        render: { fillStyle: '#222' }
+        render: { fillStyle: '#666' }
       })
     };
     trackEmoji(EMOJIS.hero, HERO.body);
@@ -114,10 +114,10 @@
 
     const items = [];
     function createItem(type, x, y) {
-      let item = Bodies.circle(x, y, 12, {
+      let item = Bodies.circle(x, y, 10, {
         label: type,
-        restitution: 0.5,
-        render: { fillStyle: '#000' }
+        restitution: 0.4,
+        render: { fillStyle: '#aaa' }
       });
       item.stats = { health: type === 'enemy' ? 10 : 0, attack: 3, defense: 1 };
       items.push(item);
@@ -125,12 +125,12 @@
       return item;
     }
 
-    // Maze generation (simple recursive division style)
     const mazeWalls = [];
-    const cols = 10;
-    const rows = 16;
+    const cols = 12;
+    const rows = 20;
     const cellSize = Math.min(window.innerWidth / cols, window.innerHeight / rows);
     const visited = Array(rows).fill(null).map(() => Array(cols).fill(false));
+    const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
 
     function shuffle(arr) {
       for (let i = arr.length - 1; i > 0; i--) {
@@ -142,13 +142,13 @@
 
     function generateMaze(x, y) {
       visited[y][x] = true;
-      for (const [dx, dy] of shuffle([[0, -1], [1, 0], [0, 1], [-1, 0]])) {
+      for (const [dx, dy] of shuffle(directions)) {
         const nx = x + dx, ny = y + dy;
         if (nx >= 0 && nx < cols && ny >= 0 && ny < rows && !visited[ny][nx]) {
-          const wx = (x + nx + 1) * cellSize / 2;
-          const wy = (y + ny + 1) * cellSize / 2;
+          const mx = (x + nx + 1) * cellSize / 2;
+          const my = (y + ny + 1) * cellSize / 2;
           const vertical = dx === 0;
-          mazeWalls.push(Bodies.rectangle(wx, wy, vertical ? cellSize : 4, vertical ? 4 : cellSize, {
+          mazeWalls.push(Bodies.rectangle(mx, my, vertical ? cellSize : 4, vertical ? 4 : cellSize, {
             isStatic: true,
             render: { fillStyle: '#333' }
           }));
@@ -159,15 +159,23 @@
 
     generateMaze(0, 0);
 
-    // Add game objects
-    World.add(world, [
-      HERO.body,
-      createItem('sword', 250, 100),
-      createItem('shield', 300, 200),
-      createItem('apple', 150, 250),
-      createItem('enemy', 250, 300),
-      ...mazeWalls
-    ]);
+    // Borders
+    const border = [
+      Bodies.rectangle(window.innerWidth / 2, -20, window.innerWidth, 40, { isStatic: true }),
+      Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 20, window.innerWidth, 40, { isStatic: true }),
+      Bodies.rectangle(-20, window.innerHeight / 2, 40, window.innerHeight, { isStatic: true }),
+      Bodies.rectangle(window.innerWidth + 20, window.innerHeight / 2, 40, window.innerHeight, { isStatic: true })
+    ];
+
+    // Populate game
+    const allObjects = [HERO.body, ...border, ...mazeWalls];
+
+    for (let i = 0; i < 3; i++) allObjects.push(createItem('sword', Math.random() * window.innerWidth, Math.random() * window.innerHeight));
+    for (let i = 0; i < 3; i++) allObjects.push(createItem('shield', Math.random() * window.innerWidth, Math.random() * window.innerHeight));
+    for (let i = 0; i < 4; i++) allObjects.push(createItem('apple', Math.random() * window.innerWidth, Math.random() * window.innerHeight));
+    for (let i = 0; i < 5; i++) allObjects.push(createItem('enemy', Math.random() * window.innerWidth, Math.random() * window.innerHeight));
+
+    World.add(world, allObjects);
 
     Events.on(engine, 'collisionStart', event => {
       for (let pair of event.pairs) {
