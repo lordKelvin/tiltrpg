@@ -2,8 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tilt Labyrinth RPG (Emoji Edition)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tilt Labyrinth RPG</title>
   <style>
     html, body {
       margin: 0;
@@ -16,12 +16,22 @@
     }
     .emoji-label {
       position: absolute;
-      font-size: 24px;
+      font-size: 18px;
       pointer-events: none;
+    }
+    #hud {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      color: white;
+      font-family: sans-serif;
+      font-size: 14px;
+      z-index: 10;
     }
   </style>
 </head>
 <body>
+  <div id="hud"></div>
   <canvas id="game"></canvas>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
   <script>
@@ -62,6 +72,7 @@
     };
 
     const labels = {};
+    const hud = document.getElementById("hud");
 
     function makeEmojiLabel(emoji) {
       const el = document.createElement('div');
@@ -79,101 +90,124 @@
     function updateEmojiPositions() {
       for (let id in labels) {
         const { el, body } = labels[id];
-        el.style.left = (body.position.x - 12) + 'px';
-        el.style.top = (body.position.y - 16) + 'px';
+        el.style.left = (body.position.x - 10) + 'px';
+        el.style.top = (body.position.y - 12) + 'px';
       }
     }
 
+    function updateHUD() {
+      hud.innerText = `Health: ${HERO.health} | Attack: ${HERO.attack} | Defense: ${HERO.defense}`;
+    }
+
     const HERO = {
-      attack: 5,
-      defense: 5,
-      health: 30,
-      body: Bodies.circle(100, 100, 30, {
+      attack: 3,
+      defense: 2,
+      health: 20,
+      body: Bodies.circle(60, 60, 15, {
         label: 'hero',
-        restitution: 0.5,
+        restitution: 0.4,
         render: { fillStyle: '#222' }
       })
     };
     trackEmoji(EMOJIS.hero, HERO.body);
+    updateHUD();
 
     const items = [];
-
     function createItem(type, x, y) {
-      let item = Bodies.circle(x, y, 25, {
-        isSensor: true,
+      let item = Bodies.circle(x, y, 12, {
         label: type,
-        render: { fillStyle: '#111' }
+        restitution: 0.5,
+        render: { fillStyle: '#000' }
       });
-      item.stats = { health: type === 'enemy' ? 20 : 0, attack: 4, defense: 2 };
+      item.stats = { health: type === 'enemy' ? 10 : 0, attack: 3, defense: 1 };
       items.push(item);
       trackEmoji(EMOJIS[type], item);
       return item;
     }
 
-    // Generate labyrinth walls
-    const walls = [];
-    for (let i = 0; i < 10; i++) {
-      let wall = Bodies.rectangle(
-        Math.random() * window.innerWidth,
-        Math.random() * window.innerHeight,
-        200, 20,
-        { isStatic: true, angle: Math.random() * Math.PI, render: { fillStyle: '#444' } }
-      );
-      walls.push(wall);
+    // Maze generation (simple recursive division style)
+    const mazeWalls = [];
+    const cols = 10;
+    const rows = 16;
+    const cellSize = Math.min(window.innerWidth / cols, window.innerHeight / rows);
+    const visited = Array(rows).fill(null).map(() => Array(cols).fill(false));
+
+    function shuffle(arr) {
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
     }
 
+    function generateMaze(x, y) {
+      visited[y][x] = true;
+      for (const [dx, dy] of shuffle([[0, -1], [1, 0], [0, 1], [-1, 0]])) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && nx < cols && ny >= 0 && ny < rows && !visited[ny][nx]) {
+          const wx = (x + nx + 1) * cellSize / 2;
+          const wy = (y + ny + 1) * cellSize / 2;
+          const vertical = dx === 0;
+          mazeWalls.push(Bodies.rectangle(wx, wy, vertical ? cellSize : 4, vertical ? 4 : cellSize, {
+            isStatic: true,
+            render: { fillStyle: '#333' }
+          }));
+          generateMaze(nx, ny);
+        }
+      }
+    }
+
+    generateMaze(0, 0);
+
+    // Add game objects
     World.add(world, [
       HERO.body,
-      createItem('sword', 300, 300),
-      createItem('shield', 400, 500),
-      createItem('apple', 200, 600),
-      createItem('enemy', 600, 400),
-      ...walls,
-      Bodies.rectangle(window.innerWidth / 2, window.innerHeight + 50, window.innerWidth, 100, { isStatic: true }),
-      Bodies.rectangle(window.innerWidth / 2, -50, window.innerWidth, 100, { isStatic: true }),
-      Bodies.rectangle(-50, window.innerHeight / 2, 100, window.innerHeight, { isStatic: true }),
-      Bodies.rectangle(window.innerWidth + 50, window.innerHeight / 2, 100, window.innerHeight, { isStatic: true })
+      createItem('sword', 250, 100),
+      createItem('shield', 300, 200),
+      createItem('apple', 150, 250),
+      createItem('enemy', 250, 300),
+      ...mazeWalls
     ]);
 
     Events.on(engine, 'collisionStart', event => {
       for (let pair of event.pairs) {
-        const labels = [pair.bodyA.label, pair.bodyB.label];
-        if (labels.includes('hero')) {
-          let other = pair.bodyA.label === 'hero' ? pair.bodyB : pair.bodyA;
-          if (!other.label) continue;
+        const [a, b] = [pair.bodyA, pair.bodyB];
+        let hero = null, other = null;
 
-          if (other.label === 'sword') {
-            HERO.attack += 2;
-            World.remove(world, other);
-            labels[other.id]?.el?.remove();
-          } else if (other.label === 'shield') {
-            HERO.defense += 2;
-            World.remove(world, other);
-            labels[other.id]?.el?.remove();
-          } else if (other.label === 'apple') {
-            HERO.health += 5;
-            World.remove(world, other);
-            labels[other.id]?.el?.remove();
-          } else if (other.label === 'enemy') {
-            let damageToEnemy = Math.max(0, HERO.attack - other.stats.defense);
-            let damageToHero = Math.max(0, other.stats.attack - HERO.defense);
-            other.stats.health -= damageToEnemy;
-            HERO.health -= damageToHero;
+        if (a.label === 'hero') { hero = a; other = b; }
+        else if (b.label === 'hero') { hero = b; other = a; }
+        else continue;
 
-            if (other.stats.health <= 0) {
-              World.remove(world, other);
-              labels[other.id]?.el?.remove();
-            }
-            if (HERO.health <= 0) {
-              alert("You died!");
-              location.reload();
-            }
+        if (other.label === 'sword') {
+          HERO.attack += 1;
+          World.remove(world, other);
+          labels[other.id].el.remove();
+        } else if (other.label === 'shield') {
+          HERO.defense += 1;
+          World.remove(world, other);
+          labels[other.id].el.remove();
+        } else if (other.label === 'apple') {
+          HERO.health += 3;
+          World.remove(world, other);
+          labels[other.id].el.remove();
+        } else if (other.label === 'enemy') {
+          let dmgToEnemy = Math.max(0, HERO.attack - other.stats.defense);
+          let dmgToHero = Math.max(0, other.stats.attack - HERO.defense);
+          other.stats.health -= dmgToEnemy;
+          HERO.health -= dmgToHero;
+          if (other.stats.health <= 0) {
+            World.remove(world, other);
+            labels[other.id].el.remove();
+          }
+          if (HERO.health <= 0) {
+            alert("You died!");
+            location.reload();
           }
         }
+        updateHUD();
       }
     });
 
-    // Gravity via tilt
     window.addEventListener('deviceorientation', function(event) {
       const tiltX = event.gamma;
       const tiltY = event.beta;
@@ -183,7 +217,6 @@
       }
     });
 
-    // Animate emoji labels
     (function animate() {
       updateEmojiPositions();
       requestAnimationFrame(animate);
