@@ -175,6 +175,12 @@
       }
     }
 
+    // Outer borders
+    walls.push(Bodies.rectangle(offsetX + (cellCols * cellSize) / 2, offsetY - 2, cellCols * cellSize, 4, { isStatic: true, render: { fillStyle: '#888' } }));
+    walls.push(Bodies.rectangle(offsetX + (cellCols * cellSize) / 2, offsetY + cellRows * cellSize + 2, cellCols * cellSize, 4, { isStatic: true, render: { fillStyle: '#888' } }));
+    walls.push(Bodies.rectangle(offsetX - 2, offsetY + (cellRows * cellSize) / 2, 4, cellRows * cellSize, { isStatic: true, render: { fillStyle: '#888' } }));
+    walls.push(Bodies.rectangle(offsetX + cellCols * cellSize + 2, offsetY + (cellRows * cellSize) / 2, 4, cellRows * cellSize, { isStatic: true, render: { fillStyle: '#888' } }));
+
     const allObjects = [HERO.body, ...walls];
 
     for (let i = 0; i < 3; i++) allObjects.push(createItem('sword', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
