@@ -195,8 +195,8 @@
 
     for (let i = 0; i < 3; i++) allObjects.push(createItem('sword', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
     for (let i = 0; i < 3; i++) allObjects.push(createItem('shield', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
-    for (let i = 0; i < 4; i++) allObjects.push(createItem('apple', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
-    for (let i = 0; i < 5; i++) allObjects.push(createItem('enemy', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
+    for (let i = 0; i < 20; i++) allObjects.push(createItem('apple', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
+    for (let i = 0; i < 50; i++) allObjects.push(createItem('enemy', Math.floor(Math.random() * cellCols), Math.floor(Math.random() * cellRows)));
 
     World.add(world, allObjects);
 
@@ -242,8 +242,8 @@
       const tiltX = event.gamma;
       const tiltY = event.beta;
       if (tiltX !== null && tiltY !== null) {
-        engine.gravity.x = tiltX / 45;
-        engine.gravity.y = tiltY / 45;
+        engine.gravity.x = tiltX / 20; // More responsive
+        engine.gravity.y = tiltY / 20;
       }
     });
 
