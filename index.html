@@ -128,27 +128,37 @@
 
     function buildMaze(cols, rows) {
       const visited = Array(rows).fill().map(() => Array(cols).fill(false));
-      const grid = Array(rows).fill().map(() => Array(cols).fill([1, 1, 1, 1])); // [top, right, bottom, left]
-      const stack = [[0, 0]];
-
-      while (stack.length) {
-        const [x, y] = stack.pop();
-        if (visited[y][x]) continue;
+      const grid = Array(rows).fill().map(() => Array(cols).fill(null).map(() => [1, 1, 1, 1])); // [top, right, bottom, left]
+    
+      function shuffle(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+    
+      function carve(x, y) {
         visited[y][x] = true;
-        const directions = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-        shuffle(directions);
-
-        for (let i = 0; i < directions.length; i++) {
-          const [dx, dy] = directions[i];
+        const directions = shuffle([
+          [0, -1, 0], // up
+          [1, 0, 1],  // right
+          [0, 1, 2],  // down
+          [-1, 0, 3]  // left
+        ]);
+    
+        for (const [dx, dy, dir] of directions) {
           const nx = x + dx;
           const ny = y + dy;
           if (nx >= 0 && nx < cols && ny >= 0 && ny < rows && !visited[ny][nx]) {
-            grid[y][x][i] = 0;
-            grid[ny][nx][(i + 2) % 4] = 0;
-            stack.push([nx, ny]);
+            grid[y][x][dir] = 0;
+            grid[ny][nx][(dir + 2) % 4] = 0;
+            carve(nx, ny);
           }
         }
       }
+    
+      carve(0, 0);
       return grid;
     }
 
